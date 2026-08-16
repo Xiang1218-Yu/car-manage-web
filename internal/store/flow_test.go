@@ -192,3 +192,52 @@ func TestStats(t *testing.T) {
 
 // 避免未使用导入告警
 var _ = sql.ErrNoRows
+
+func TestCheckOutKeepsFeeRuleAtCheckIn(t *testing.T) {
+	s := newTestStore(t)
+	calc := fee.New()
+
+	lotID, err := s.CreateLot("快照停车场", "测试地址", 1)
+	if err != nil {
+		t.Fatalf("创建停车场失败: %v", err)
+	}
+	spotID, err := s.CreateSpot(lotID, "S-01", models.SpotAvailable)
+	if err != nil {
+		t.Fatalf("创建车位失败: %v", err)
+	}
+	entryRule := models.FeeRule{
+		LotID: &lotID, Name: "入场时价格", FreeMinutes: 0,
+		FirstBlockMinutes: 60, FirstBlockPrice: 10,
+		UnitMinutes: 30, UnitPrice: 5, DailyCap: 0, Active: true,
+	}
+	ruleID, err := s.CreateFeeRule(entryRule)
+	if err != nil {
+		t.Fatalf("创建入场规则失败: %v", err)
+	}
+	vehicleID, err := s.UpsertVehicle(models.Vehicle{Plate: "京A快照01"})
+	if err != nil {
+		t.Fatalf("创建车辆失败: %v", err)
+	}
+	recordID, _, err := s.CheckIn(spotID, vehicleID)
+	if err != nil {
+		t.Fatalf("入场失败: %v", err)
+	}
+
+	updatedRule := entryRule
+	updatedRule.Name = "调整后价格"
+	updatedRule.FirstBlockPrice = 80
+	if err := s.UpdateFeeRule(ruleID, updatedRule); err != nil {
+		t.Fatalf("更新规则失败: %v", err)
+	}
+
+	got, breakdown, err := s.CheckOut(recordID, time.Now().UTC().Add(20*time.Minute), calc.Calc)
+	if err != nil {
+		t.Fatalf("出场结算失败: %v", err)
+	}
+	if got != 10 {
+		t.Fatalf("已入场记录应按入场时 10 元规则结算，got %.2f（明细 %+v）", got, breakdown)
+	}
+	if breakdown == nil || breakdown.RuleName != "入场时价格" {
+		t.Fatalf("结算明细应保留入场规则，got %+v", breakdown)
+	}
+}

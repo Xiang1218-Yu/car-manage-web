@@ -143,22 +143,23 @@ func (s *Store) CheckIn(spotID, vehicleID int64) (int64, *models.FeeRule, error)
 }
 
 // CheckOut 车辆出场：在同一事务中计算费用、更新记录与车位状态。
+//
 //	checkOut 若为零值则取当前时间。
 //	返回计算出的费用与计费明细。
 func (s *Store) CheckOut(recordID int64, checkOut time.Time, calc FeeCalculator) (float64, *models.FeeBreakdown, error) {
 	var (
-		fee   float64
-		bd    *models.FeeBreakdown
-		rErr  error
+		fee  float64
+		bd   *models.FeeBreakdown
+		rErr error
 	)
 	err := s.inTx(func(tx *sql.Tx) error {
 		var (
-			ruleID    sql.NullInt64
-			checkInS  string
-			outS      sql.NullString
-			status    string
-			spotID    int64
-			rule      *models.FeeRule
+			ruleID   sql.NullInt64
+			checkInS string
+			outS     sql.NullString
+			status   string
+			spotID   int64
+			rule     *models.FeeRule
 		)
 		err := tx.QueryRow(`SELECT rule_id, check_in_time, check_out_time, status, spot_id
 			FROM parking_records WHERE id=?`, recordID).
@@ -182,19 +183,11 @@ func (s *Store) CheckOut(recordID int64, checkOut time.Time, calc FeeCalculator)
 			rErr = errors.New("出场时间早于入场时间")
 			return rErr
 		}
-		// 优先用记录绑定的规则快照；若规则被删除则回退解析
-		if ruleID.Valid {
-			rule, err = s.getFeeRuleTx(tx, ruleID.Int64)
-			if err != nil {
-				rule = nil
-			}
-		}
-		if rule == nil {
-			rule, err = s.resolveFeeRuleBySpotTx(tx, spotID)
-			if err != nil {
-				rErr = fmt.Errorf("无可用费用规则: %w", err)
-				return rErr
-			}
+		// 结算时重新解析停车场当前规则，使规则调整立即生效。
+		rule, err = s.resolveFeeRuleBySpotTx(tx, spotID)
+		if err != nil {
+			rErr = fmt.Errorf("无可用费用规则: %w", err)
+			return rErr
 		}
 		bd = calc(checkIn, checkOut, rule)
 		fee = bd.TotalFee
