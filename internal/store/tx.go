@@ -52,6 +52,30 @@ func (s *Store) resolveFeeRuleBySpotTx(tx *sql.Tx, spotID int64) (*models.FeeRul
 	return s.resolveFeeRuleTx(tx, lotID.Int64)
 }
 
+// resolveRecordRuleTx 解析某条停车记录结算时应使用的规则。
+//
+// 入场时已把生效规则计费参数快照进记录，结算优先用快照：这样规则后续被
+// 编辑/调价/删除都不会改变在场订单应付的价格（快照与 fee_rules 解耦）。
+// 仅当记录没有快照（旧库未迁移的历史记录）时，才回退到按停车场重新解析当前规则。
+func (s *Store) resolveRecordRuleTx(tx *sql.Tx, recordID, spotID int64) (*models.FeeRule, error) {
+	var r models.FeeRule
+	err := tx.QueryRow(`SELECT rule_name, rule_free_minutes, rule_first_block_minutes, rule_first_block_price,
+		rule_unit_minutes, rule_unit_price, rule_daily_cap
+		FROM parking_records WHERE id=?`, recordID).
+		Scan(&r.Name, &r.FreeMinutes, &r.FirstBlockMinutes, &r.FirstBlockPrice,
+			&r.UnitMinutes, &r.UnitPrice, &r.DailyCap)
+	if err != nil {
+		return nil, err
+	}
+	// 规则创建时校验过 FirstBlockMinutes>0 与 UnitMinutes>0，
+	// 快照里首段时长为 0 即视为无快照（未迁移的历史记录），回退到当前规则。
+	if r.FirstBlockMinutes <= 0 || r.UnitMinutes <= 0 {
+		return s.resolveFeeRuleBySpotTx(tx, spotID)
+	}
+	r.Active = true
+	return &r, nil
+}
+
 func (s *Store) getFeeRuleByLotTx(tx *sql.Tx, lotID int64) (*models.FeeRule, error) {
 	var r models.FeeRule
 	var active int
@@ -82,28 +106,6 @@ func (s *Store) getGlobalFeeRuleTx(tx *sql.Tx) (*models.FeeRule, error) {
 	}
 	if err != nil {
 		return nil, err
-	}
-	r.Active = active == 1
-	return &r, nil
-}
-
-func (s *Store) getFeeRuleTx(tx *sql.Tx, id int64) (*models.FeeRule, error) {
-	var r models.FeeRule
-	var lotID sql.NullInt64
-	var active int
-	err := tx.QueryRow(`SELECT id, lot_id, name, free_minutes, first_block_minutes, first_block_price,
-		unit_minutes, unit_price, daily_cap, active, created_at FROM fee_rules WHERE id=?`, id).
-		Scan(&r.ID, &lotID, &r.Name, &r.FreeMinutes, &r.FirstBlockMinutes, &r.FirstBlockPrice,
-			&r.UnitMinutes, &r.UnitPrice, &r.DailyCap, &active, &r.CreatedAt)
-	if err == sql.ErrNoRows {
-		return nil, ErrNotFound
-	}
-	if err != nil {
-		return nil, err
-	}
-	if lotID.Valid {
-		li := lotID.Int64
-		r.LotID = &li
 	}
 	r.Active = active == 1
 	return &r, nil

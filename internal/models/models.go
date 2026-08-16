@@ -71,6 +71,10 @@ const (
 )
 
 // ParkingRecord 停车记录
+//
+// 结算以入场时落库的规则快照（rule_* 字段，见 schema.sql）为准，
+// 使运营入场后对 fee_rules 的编辑/调价不改变在场订单应付的价格。
+// RuleID 仅作关联展示，可为空（规则被删除时）。
 type ParkingRecord struct {
 	ID           int64        `json:"id"`
 	SpotID       int64        `json:"spot_id"`

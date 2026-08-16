@@ -15,7 +15,8 @@ import (
 func (s *Store) ListRecords(status string) ([]models.RecordDetail, error) {
 	q := `
 SELECT r.id, r.spot_id, r.vehicle_id, r.rule_id, r.check_in_time, r.check_out_time, r.fee, r.status, r.created_at,
-       s.code, COALESCE(l.name,''), v.plate, COALESCE(fr.name,'')
+       s.code, COALESCE(l.name,''), v.plate,
+       COALESCE(NULLIF(r.rule_name,''), fr.name, '')
 FROM parking_records r
 JOIN parking_spots s   ON s.id = r.spot_id
 LEFT JOIN parking_lots l  ON l.id = s.lot_id
@@ -121,9 +122,15 @@ func (s *Store) CheckIn(spotID, vehicleID int64) (int64, *models.FeeRule, error)
 		}
 		nowT := time.Now().UTC()
 		res, err := tx.Exec(`INSERT INTO parking_records
-			(spot_id, vehicle_id, rule_id, check_in_time, status, created_at)
-			VALUES (?,?,?,?,?,?)`,
-			spotID, vehicleID, rule.ID, nowT.Format(time.RFC3339), string(models.RecordActive), nowT.Format(time.RFC3339))
+			(spot_id, vehicle_id, rule_id,
+			 rule_name, rule_free_minutes, rule_first_block_minutes, rule_first_block_price,
+			 rule_unit_minutes, rule_unit_price, rule_daily_cap,
+			 check_in_time, status, created_at)
+			VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+			spotID, vehicleID, rule.ID,
+			rule.Name, rule.FreeMinutes, rule.FirstBlockMinutes, rule.FirstBlockPrice,
+			rule.UnitMinutes, rule.UnitPrice, rule.DailyCap,
+			nowT.Format(time.RFC3339), string(models.RecordActive), nowT.Format(time.RFC3339))
 		if err != nil {
 			return err
 		}
@@ -154,16 +161,14 @@ func (s *Store) CheckOut(recordID int64, checkOut time.Time, calc FeeCalculator)
 	)
 	err := s.inTx(func(tx *sql.Tx) error {
 		var (
-			ruleID   sql.NullInt64
 			checkInS string
 			outS     sql.NullString
 			status   string
 			spotID   int64
-			rule     *models.FeeRule
 		)
-		err := tx.QueryRow(`SELECT rule_id, check_in_time, check_out_time, status, spot_id
+		err := tx.QueryRow(`SELECT check_in_time, check_out_time, status, spot_id
 			FROM parking_records WHERE id=?`, recordID).
-			Scan(&ruleID, &checkInS, &outS, &status, &spotID)
+			Scan(&checkInS, &outS, &status, &spotID)
 		if err == sql.ErrNoRows {
 			rErr = ErrNotFound
 			return err
@@ -183,10 +188,11 @@ func (s *Store) CheckOut(recordID int64, checkOut time.Time, calc FeeCalculator)
 			rErr = errors.New("出场时间早于入场时间")
 			return rErr
 		}
-		// 结算时重新解析停车场当前规则，使规则调整立即生效。
-		rule, err = s.resolveFeeRuleBySpotTx(tx, spotID)
-		if err != nil {
-			rErr = fmt.Errorf("无可用费用规则: %w", err)
+		// 以入场时落库的规则快照结算，规则后续被编辑/调价不影响在场订单。
+		// 快照缺失（旧库记录）或对应规则已删除时，回退重新解析当前生效规则。
+		rule, rerr := s.resolveRecordRuleTx(tx, recordID, spotID)
+		if rerr != nil {
+			rErr = fmt.Errorf("无可用费用规则: %w", rerr)
 			return rErr
 		}
 		bd = calc(checkIn, checkOut, rule)

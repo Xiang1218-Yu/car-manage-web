@@ -36,7 +36,45 @@ func Open(path string) (*Store, error) {
 		db.Close()
 		return nil, fmt.Errorf("执行建表语句: %w", err)
 	}
+	if err := migrate(db); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("执行数据库迁移: %w", err)
+	}
 	return &Store{db: db}, nil
+}
+
+// migrate 对已有的数据库补齐后续新增的列。
+//
+// schema.sql 使用 CREATE TABLE IF NOT EXISTS，对已存在的表不会补列，
+// 因此历史库需通过这里的幂等 ALTER TABLE 升级到当前结构。
+func migrate(db *sql.DB) error {
+	// 为 parking_records 补齐入场规则快照列（旧库缺失，新库已由 schema.sql 创建）。
+	snapshotCols := []struct {
+		name string
+		decl string
+	}{
+		{"rule_name", "TEXT NOT NULL DEFAULT ''"},
+		{"rule_free_minutes", "INTEGER NOT NULL DEFAULT 0"},
+		{"rule_first_block_minutes", "INTEGER NOT NULL DEFAULT 0"},
+		{"rule_first_block_price", "REAL NOT NULL DEFAULT 0"},
+		{"rule_unit_minutes", "INTEGER NOT NULL DEFAULT 0"},
+		{"rule_unit_price", "REAL NOT NULL DEFAULT 0"},
+		{"rule_daily_cap", "REAL NOT NULL DEFAULT 0"},
+	}
+	for _, c := range snapshotCols {
+		var exists int
+		err := db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('parking_records') WHERE name=?`, c.name).Scan(&exists)
+		if err != nil {
+			return err
+		}
+		if exists > 0 {
+			continue
+		}
+		if _, err := db.Exec(fmt.Sprintf(`ALTER TABLE parking_records ADD COLUMN %s %s`, c.name, c.decl)); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Close 关闭数据库。
