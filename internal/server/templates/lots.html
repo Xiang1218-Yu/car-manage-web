@@ -1,0 +1,78 @@
+{{define "lots.html"}}
+<div class="page-head">
+  <h1>停车场</h1>
+  <button class="btn btn-primary" data-modal="modal-lot">+ 新建停车场</button>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>ID</th><th>名称</th><th>地址</th><th>规划车位</th><th>空闲/占用</th><th>操作</th></tr></thead>
+      <tbody>
+      {{range .Rows}}
+        {{$l := .Lot}}
+        {{with $l}}
+        <tr>
+          <td class="mono">{{.ID}}</td>
+          <td><a href="/lots/{{.ID}}">{{.Name}}</a></td>
+          <td class="muted">{{.Address}}</td>
+          <td>{{.TotalSpots}}</td>
+          <td><span class="badge ok">{{$.Available}}</span> <span class="badge warn">{{$.Occupied}}</span> / {{$.SpotCount}}</td>
+          <td class="actions">
+            <button class="btn btn-sm" data-modal="modal-lot-edit"
+              data-fill="action=/lots/{{.ID}}/update,name={{.Name}},address={{.Address}},total_spots={{.TotalSpots}}">编辑</button>
+            <form method="post" action="/lots/{{.ID}}/delete" data-confirm="确认删除停车场「{{.Name}}」？关联车位将一并删除。">
+              <button class="btn btn-sm btn-danger">删除</button>
+            </form>
+          </td>
+        </tr>
+        {{end}}
+      {{else}}
+        <tr><td colspan="6" class="empty">暂无停车场，点击右上角新建</td></tr>
+      {{end}}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- 新建停车场模态框 -->
+<div class="modal-backdrop" id="modal-lot">
+  <div class="modal">
+    <div class="modal-head">新建停车场 <button class="modal-close" data-close>×</button></div>
+    <div class="modal-body">
+      <form method="post" action="/lots">
+        <div class="form-grid">
+          <div class="field"><label>名称 *</label><input name="name" required></div>
+          <div class="field"><label>地址</label><input name="address"></div>
+          <div class="field"><label>规划车位总数</label><input type="number" name="total_spots" value="0" min="0"></div>
+        </div>
+        <div class="form-actions">
+          <button class="btn btn-primary" type="submit">创建</button>
+          <button class="btn" type="button" data-close>取消</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- 编辑停车场模态框 -->
+<div class="modal-backdrop" id="modal-lot-edit">
+  <div class="modal">
+    <div class="modal-head">编辑停车场 <button class="modal-close" data-close>×</button></div>
+    <div class="modal-body">
+      <form method="post" action="/lots/0/update" id="lot-edit-form">
+        <input type="hidden" name="id" id="lot-edit-id">
+        <div class="form-grid">
+          <div class="field"><label>名称 *</label><input name="name" id="lot-edit-name" required></div>
+          <div class="field"><label>地址</label><input name="address" id="lot-edit-address"></div>
+          <div class="field"><label>规划车位总数</label><input type="number" name="total_spots" id="lot-edit-total" min="0"></div>
+        </div>
+        <div class="form-actions">
+          <button class="btn btn-primary" type="submit">保存</button>
+          <button class="btn" type="button" data-close>取消</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{{end}}

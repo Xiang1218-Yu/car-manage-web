@@ -1,0 +1,67 @@
+{{define "vehicles.html"}}
+<div class="page-head">
+  <h1>车辆</h1>
+  <button class="btn btn-primary" data-modal="modal-vehicle">+ 登记车辆</button>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>ID</th><th>车牌</th><th>类型</th><th>颜色</th><th>车主</th><th>电话</th><th>登记时间</th><th>操作</th></tr></thead>
+      <tbody>
+      {{range .Vehicles}}
+        {{$type := "轿车"}}
+        {{if eq .VehicleType "suv"}}{{$type = "SUV"}}{{end}}
+        {{if eq .VehicleType "truck"}}{{$type = "货车"}}{{end}}
+        {{if eq .VehicleType "motorcycle"}}{{$type = "摩托车"}}{{end}}
+        <tr>
+          <td class="mono">{{.ID}}</td>
+          <td class="mono">{{.Plate}}</td>
+          <td>{{$type}}</td>
+          <td>{{.Color}}</td>
+          <td>{{.OwnerName}}</td>
+          <td>{{.OwnerPhone}}</td>
+          <td class="muted">{{fmtTime .CreatedAt}}</td>
+          <td class="actions">
+            <form method="post" action="/vehicles/{{.ID}}/delete" data-confirm="确认删除车辆 {{.Plate}}？">
+              <button class="btn btn-sm btn-danger">删除</button>
+            </form>
+          </td>
+        </tr>
+      {{else}}
+        <tr><td colspan="8" class="empty">暂无登记车辆</td></tr>
+      {{end}}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- 登记车辆模态框 -->
+<div class="modal-backdrop" id="modal-vehicle">
+  <div class="modal">
+    <div class="modal-head">登记车辆 <button class="modal-close" data-close>×</button></div>
+    <div class="modal-body">
+      <form method="post" action="/vehicles">
+        <div class="form-grid">
+          <div class="field"><label>车牌号 *</label><input name="plate" placeholder="如 京A12345" required></div>
+          <div class="field"><label>车辆类型</label>
+            <select name="vehicle_type">
+              <option value="car">轿车</option>
+              <option value="suv">SUV</option>
+              <option value="truck">货车</option>
+              <option value="motorcycle">摩托车</option>
+            </select>
+          </div>
+          <div class="field"><label>颜色</label><input name="color"></div>
+          <div class="field"><label>车主姓名</label><input name="owner_name"></div>
+          <div class="field"><label>联系电话</label><input name="owner_phone"></div>
+        </div>
+        <div class="form-actions">
+          <button class="btn btn-primary" type="submit">保存</button>
+          <button class="btn" type="button" data-close>取消</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{{end}}

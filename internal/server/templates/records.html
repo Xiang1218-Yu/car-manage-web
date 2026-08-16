@@ -1,0 +1,47 @@
+{{define "records.html"}}
+<div class="page-head">
+  <h1>停车记录</h1>
+</div>
+
+<div class="filter-bar">
+  <a href="/records" class="{{if eq .CurStatus ""}}active{{end}}">全部</a>
+  <a href="/records?status=active" class="{{if eq .CurStatus "active"}}active{{end}}">在场中</a>
+  <a href="/records?status=completed" class="{{if eq .CurStatus "completed"}}active{{end}}">已离场</a>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>记录</th><th>车位</th><th>停车场</th><th>车牌</th><th>规则</th><th>入场</th><th>出场</th><th>时长</th><th>费用</th><th>状态</th><th>操作</th></tr></thead>
+      <tbody>
+      {{range .Records}}
+        <tr>
+          <td class="mono">#{{.ID}}</td>
+          <td>{{.SpotCode}}</td>
+          <td>{{.LotName}}</td>
+          <td class="mono">{{.Plate}}</td>
+          <td class="muted">{{.RuleName}}</td>
+          <td>{{fmtTime .CheckInTime}}</td>
+          <td>{{fmtTime .CheckOutTime}}</td>
+          <td>{{fmtDuration .CheckInTime .CheckOutTime}}</td>
+          <td class="fee">{{rmb .Fee}}</td>
+          <td><span class="badge {{statusClass .Status}}">{{statusLabel .Status}}</span></td>
+          <td class="actions">
+            {{if eq .Status "active"}}
+            <form method="post" action="/records/{{.ID}}/checkout" data-confirm="确认让 {{.Plate}} 出场并结算费用？">
+              <button class="btn btn-sm btn-primary">出场结算</button>
+            </form>
+            {{end}}
+            <form method="post" action="/records/{{.ID}}/delete" data-confirm="确认删除该停车记录？">
+              <button class="btn btn-sm btn-danger">删除</button>
+            </form>
+          </td>
+        </tr>
+      {{else}}
+        <tr><td colspan="11" class="empty">暂无停车记录</td></tr>
+      {{end}}
+      </tbody>
+    </table>
+  </div>
+</div>
+{{end}}

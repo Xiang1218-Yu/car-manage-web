@@ -1,0 +1,144 @@
+{{define "lot_detail.html"}}
+{{$lot := .Lot}}
+<div class="page-head">
+  <h1>{{$lot.Name}} <span class="muted" style="font-weight:400;font-size:14px;">{{$lot.Address}}</span></h1>
+  <div>
+    <button class="btn btn-primary" data-modal="modal-checkin" data-fill="spot_id=,from=/lots/{{$lot.ID}}">车辆入场</button>
+    <button class="btn" data-modal="modal-spot" data-fill="lot_id={{$lot.ID}}">+ 新建车位</button>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-head">车位状态 <span class="muted" style="font-weight:400;font-size:13px;">共 {{len .Spots}} 个车位</span></div>
+  <div class="card-pad">
+    {{if .Spots}}
+    <div class="spot-grid">
+      {{range .Spots}}
+      <div class="spot {{.Status}}">
+        <div class="code">{{.Code}}</div>
+        <div class="plate">{{if .CurrentPlate}}{{.CurrentPlate}}{{else}}{{statusLabel .Status}}{{end}}</div>
+      </div>
+      {{end}}
+    </div>
+    {{else}}
+    <div class="empty">该停车场暂无车位</div>
+    {{end}}
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-head">车位列表</div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>编号</th><th>状态</th><th>当前车辆</th><th>操作</th></tr></thead>
+      <tbody>
+      {{range .Spots}}
+      <tr>
+        <td class="mono">{{.Code}}</td>
+        <td><span class="badge {{statusClass .Status}}">{{statusLabel .Status}}</span></td>
+        <td>{{if .CurrentPlate}}<span class="mono">{{.CurrentPlate}}</span>{{else}}—{{end}}</td>
+        <td class="actions">
+          {{if eq .Status "available"}}
+          <button class="btn btn-sm btn-primary" data-modal="modal-checkin"
+            data-fill="spot_id={{.ID}},from=/lots/{{$lot.ID}}">入场</button>
+          {{else if eq .Status "occupied"}}
+          <form method="post" action="/records/{{.CurrentRecordID}}/checkout" data-confirm="确认让 {{.CurrentPlate}} 出场并结算费用？">
+            <button class="btn btn-sm btn-primary">出场结算</button>
+          </form>
+          {{end}}
+          <button class="btn btn-sm" data-modal="modal-spot-edit"
+            data-fill="action=/spots/{{.ID}}/update,code={{.Code}},status={{.Status}}">编辑</button>
+          <form method="post" action="/spots/{{.ID}}/delete" data-confirm="确认删除车位 {{.Code}}？">
+            <button class="btn btn-sm btn-danger">删除</button>
+          </form>
+        </td>
+      </tr>
+      {{else}}
+      <tr><td colspan="4" class="empty">暂无车位</td></tr>
+      {{end}}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- 入场模态框 -->
+<div class="modal-backdrop" id="modal-checkin">
+  <div class="modal">
+    <div class="modal-head">车辆入场 <button class="modal-close" data-close>×</button></div>
+    <div class="modal-body">
+      <form method="post" action="/records/checkin">
+        <input type="hidden" name="spot_id">
+        <input type="hidden" name="from">
+        <div class="form-grid">
+          <div class="field"><label>车牌号 *</label><input name="plate" placeholder="如 京A12345" required></div>
+          <div class="field"><label>车辆类型</label>
+            <select name="vehicle_type">
+              <option value="car">轿车</option>
+              <option value="suv">SUV</option>
+              <option value="truck">货车</option>
+              <option value="motorcycle">摩托车</option>
+            </select>
+          </div>
+          <div class="field"><label>颜色</label><input name="color"></div>
+          <div class="field"><label>车主姓名</label><input name="owner_name"></div>
+          <div class="field"><label>联系电话</label><input name="owner_phone"></div>
+        </div>
+        <div class="form-actions">
+          <button class="btn btn-primary" type="submit">确认入场</button>
+          <button class="btn" type="button" data-close>取消</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- 新建车位模态框 -->
+<div class="modal-backdrop" id="modal-spot">
+  <div class="modal">
+    <div class="modal-head">新建车位 <button class="modal-close" data-close>×</button></div>
+    <div class="modal-body">
+      <form method="post" action="/spots">
+        <input type="hidden" name="lot_id">
+        <div class="form-grid">
+          <div class="field"><label>车位编号 *</label><input name="code" placeholder="如 A01" required></div>
+          <div class="field"><label>状态</label>
+            <select name="status">
+              <option value="available">空闲</option>
+              <option value="maintenance">维护中</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button class="btn btn-primary" type="submit">创建</button>
+          <button class="btn" type="button" data-close>取消</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- 编辑车位模态框 -->
+<div class="modal-backdrop" id="modal-spot-edit">
+  <div class="modal">
+    <div class="modal-head">编辑车位 <button class="modal-close" data-close>×</button></div>
+    <div class="modal-body">
+      <form method="post" action="/spots/0/update">
+        <div class="form-grid">
+          <div class="field"><label>车位编号 *</label><input name="code" required></div>
+          <div class="field"><label>状态</label>
+            <select name="status">
+              <option value="available">空闲</option>
+              <option value="occupied">占用</option>
+              <option value="maintenance">维护中</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button class="btn btn-primary" type="submit">保存</button>
+          <button class="btn" type="button" data-close>取消</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{{end}}

@@ -1,0 +1,39 @@
+{{define "dashboard.html"}}
+<div class="page-head"><h1>仪表盘</h1></div>
+
+<div class="stats-grid">
+  <div class="stat"><div class="label">停车场</div><div class="value">{{.Stats.TotalLots}}</div></div>
+  <div class="stat"><div class="label">车位总数</div><div class="value">{{.Stats.TotalSpots}}</div></div>
+  <div class="stat"><div class="label">空闲车位</div><div class="value ok">{{.Stats.AvailableSpots}}</div></div>
+  <div class="stat"><div class="label">占用车位</div><div class="value warn">{{.Stats.OccupiedSpots}}</div></div>
+  <div class="stat"><div class="label">在场车辆</div><div class="value warn">{{.Stats.ActiveRecords}}</div></div>
+  <div class="stat"><div class="label">今日收入</div><div class="value">{{rmb .Stats.TodayRevenue}}</div></div>
+  <div class="stat"><div class="label">停车记录总数</div><div class="value">{{.Stats.TotalRecords}}</div></div>
+</div>
+
+<div class="card">
+  <div class="card-head">最近停车记录 <a class="btn btn-sm" href="/records">查看全部</a></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>记录</th><th>车位</th><th>停车场</th><th>车牌</th><th>入场</th><th>出场</th><th>时长</th><th>费用</th><th>状态</th></tr></thead>
+      <tbody>
+      {{range .Recent}}
+        <tr>
+          <td class="mono">#{{.ID}}</td>
+          <td>{{.SpotCode}}</td>
+          <td>{{.LotName}}</td>
+          <td class="mono">{{.Plate}}</td>
+          <td>{{fmtTime .CheckInTime}}</td>
+          <td>{{fmtTime .CheckOutTime}}</td>
+          <td>{{fmtDuration .CheckInTime .CheckOutTime}}</td>
+          <td class="fee">{{rmb .Fee}}</td>
+          <td><span class="badge {{statusClass .Status}}">{{statusLabel .Status}}</span></td>
+        </tr>
+      {{else}}
+        <tr><td colspan="9" class="empty">暂无停车记录</td></tr>
+      {{end}}
+      </tbody>
+    </table>
+  </div>
+</div>
+{{end}}

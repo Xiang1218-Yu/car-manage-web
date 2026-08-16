@@ -1,0 +1,30 @@
+{{define "layout.html"}}<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>停车场管理系统</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand"><span class="logo">🅿️</span>停车场管理</div>
+    <nav class="nav">
+      <a href="/" class="{{if eq .Page "dashboard"}}active{{end}}">仪表盘</a>
+      <a href="/lots" class="{{if eq .Page "lots"}}active{{end}}">停车场</a>
+      <a href="/spots" class="{{if eq .Page "spots"}}active{{end}}">车位</a>
+      <a href="/vehicles" class="{{if eq .Page "vehicles"}}active{{end}}">车辆</a>
+      <a href="/rules" class="{{if eq .Page "rules"}}active{{end}}">费用规则</a>
+      <a href="/records" class="{{if eq .Page "records"}}active{{end}}">停车记录</a>
+    </nav>
+  </aside>
+  <main class="main">
+    {{if .Flash}}<div class="flash">{{.Flash}}</div>{{end}}
+    {{.Content}}
+  </main>
+</div>
+<script src="/static/app.js"></script>
+</body>
+</html>
+{{end}}

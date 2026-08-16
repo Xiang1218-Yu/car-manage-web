@@ -1,0 +1,53 @@
+{{define "spots.html"}}
+<div class="page-head">
+  <h1>车位</h1>
+  <button class="btn btn-primary" data-modal="modal-spot">+ 新建车位</button>
+</div>
+
+{{range .Views}}
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-head">{{.LotName}} <span class="muted" style="font-weight:400;font-size:13px;">{{len .Spots}} 个车位</span></div>
+  <div class="card-pad">
+    <div class="spot-grid">
+      {{range .Spots}}
+      <div class="spot {{.Status}}">
+        <div class="code">{{.Code}}</div>
+        <div class="plate">{{if .CurrentPlate}}{{.CurrentPlate}}{{else}}{{statusLabel .Status}}{{end}}</div>
+      </div>
+      {{end}}
+    </div>
+  </div>
+</div>
+{{else}}
+<div class="card"><div class="empty">暂无停车场与车位</div></div>
+{{end}}
+
+<!-- 新建车位模态框 -->
+<div class="modal-backdrop" id="modal-spot">
+  <div class="modal">
+    <div class="modal-head">新建车位 <button class="modal-close" data-close>×</button></div>
+    <div class="modal-body">
+      <form method="post" action="/spots">
+        <div class="form-grid">
+          <div class="field"><label>停车场 *</label>
+            <select name="lot_id" required>
+              {{range .Lots}}<option value="{{.ID}}">{{.Name}}</option>{{else}}<option value="" disabled>请先创建停车场</option>{{end}}
+            </select>
+          </div>
+          <div class="field"><label>车位编号 *</label><input name="code" placeholder="如 A01" required></div>
+          <div class="field"><label>状态</label>
+            <select name="status">
+              <option value="available">空闲</option>
+              <option value="maintenance">维护中</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button class="btn btn-primary" type="submit">创建</button>
+          <button class="btn" type="button" data-close>取消</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{{end}}
