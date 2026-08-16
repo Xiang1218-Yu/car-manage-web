@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 	"time"
@@ -32,6 +33,8 @@ func atofOr(s string, def float64) float64 {
 	return def
 }
 
+var errMissingQueryTime = errors.New("缺少时间参数")
+
 func zeroTime() time.Time { return time.Time{} }
 
 func nowTime() time.Time { return time.Now().UTC() }
@@ -40,7 +43,7 @@ func nowTime() time.Time { return time.Now().UTC() }
 func parseQueryTime(r *http.Request, key string) (time.Time, error) {
 	v := r.URL.Query().Get(key)
 	if v == "" {
-		return time.Time{}, &time.ParseError{}
+		return time.Time{}, errMissingQueryTime
 	}
 	return time.Parse(time.RFC3339, v)
 }

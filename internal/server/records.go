@@ -1,6 +1,7 @@
 package server
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -167,7 +168,12 @@ func (s *Server) handleFeeEstimate(w http.ResponseWriter, r *http.Request) {
 	}
 	checkOut, err := parseQueryTime(r, "check_out")
 	if err != nil {
-		checkOut = nowTime()
+		if errors.Is(err, errMissingQueryTime) {
+			checkOut = nowTime()
+		} else {
+			writeJSONError(w, http.StatusBadRequest, "check_out 格式应为 RFC3339")
+			return
+		}
 	}
 	bd := s.fee.Calc(checkIn, checkOut, rule)
 	writeJSON(w, http.StatusOK, bd)
