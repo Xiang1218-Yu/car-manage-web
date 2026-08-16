@@ -36,6 +36,10 @@ func Open(path string) (*Store, error) {
 		db.Close()
 		return nil, fmt.Errorf("执行建表语句: %w", err)
 	}
+	if err := ensureRecordSnapshotColumn(db); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("升级停车记录快照字段: %w", err)
+	}
 	return &Store{db: db}, nil
 }
 
@@ -114,4 +118,30 @@ func (s *Store) DeleteLot(id int64) error {
 		return ErrNotFound
 	}
 	return nil
+}
+
+// ensureRecordSnapshotColumn 让已有 SQLite 数据库在不丢失记录的前提下获得快照列。
+func ensureRecordSnapshotColumn(db *sql.DB) error {
+	rows, err := db.Query(`PRAGMA table_info(parking_records)`)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var cid int
+		var name, columnType string
+		var notNull, pk int
+		var defaultValue any
+		if err := rows.Scan(&cid, &name, &columnType, &notNull, &defaultValue, &pk); err != nil {
+			return err
+		}
+		if name == "rule_snapshot" {
+			return rows.Err()
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	_, err = db.Exec(`ALTER TABLE parking_records ADD COLUMN rule_snapshot TEXT NOT NULL DEFAULT ''`)
+	return err
 }

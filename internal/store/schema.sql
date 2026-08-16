@@ -50,6 +50,7 @@ CREATE TABLE IF NOT EXISTS parking_records (
     spot_id        INTEGER NOT NULL,
     vehicle_id     INTEGER NOT NULL,
     rule_id        INTEGER,                              -- 入场时绑定的费用规则
+    rule_snapshot  TEXT    NOT NULL DEFAULT '',          -- 入场时冻结的计费参数 JSON
     check_in_time  TEXT    NOT NULL,
     check_out_time TEXT,
     fee            REAL    NOT NULL DEFAULT 0,

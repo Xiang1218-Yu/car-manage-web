@@ -119,11 +119,15 @@ func (s *Store) CheckIn(spotID, vehicleID int64) (int64, *models.FeeRule, error)
 			retErr = fmt.Errorf("无可用费用规则: %w", err)
 			return retErr
 		}
+		snapshot, err := encodeFeeRuleSnapshot(rule)
+		if err != nil {
+			return err
+		}
 		nowT := time.Now().UTC()
 		res, err := tx.Exec(`INSERT INTO parking_records
-			(spot_id, vehicle_id, rule_id, check_in_time, status, created_at)
-			VALUES (?,?,?,?,?,?)`,
-			spotID, vehicleID, rule.ID, nowT.Format(time.RFC3339), string(models.RecordActive), nowT.Format(time.RFC3339))
+			(spot_id, vehicle_id, rule_id, rule_snapshot, check_in_time, status, created_at)
+			VALUES (?,?,?,?,?,?,?)`,
+			spotID, vehicleID, rule.ID, snapshot, nowT.Format(time.RFC3339), string(models.RecordActive), nowT.Format(time.RFC3339))
 		if err != nil {
 			return err
 		}
@@ -154,16 +158,17 @@ func (s *Store) CheckOut(recordID int64, checkOut time.Time, calc FeeCalculator)
 	)
 	err := s.inTx(func(tx *sql.Tx) error {
 		var (
-			ruleID   sql.NullInt64
-			checkInS string
-			outS     sql.NullString
-			status   string
-			spotID   int64
-			rule     *models.FeeRule
+			ruleID    sql.NullInt64
+			snapshotS sql.NullString
+			checkInS  string
+			outS      sql.NullString
+			status    string
+			spotID    int64
+			rule      *models.FeeRule
 		)
-		err := tx.QueryRow(`SELECT rule_id, check_in_time, check_out_time, status, spot_id
+		err := tx.QueryRow(`SELECT rule_id, rule_snapshot, check_in_time, check_out_time, status, spot_id
 			FROM parking_records WHERE id=?`, recordID).
-			Scan(&ruleID, &checkInS, &outS, &status, &spotID)
+			Scan(&ruleID, &snapshotS, &checkInS, &outS, &status, &spotID)
 		if err == sql.ErrNoRows {
 			rErr = ErrNotFound
 			return err
@@ -183,11 +188,26 @@ func (s *Store) CheckOut(recordID int64, checkOut time.Time, calc FeeCalculator)
 			rErr = errors.New("出场时间早于入场时间")
 			return rErr
 		}
-		// 结算时重新解析停车场当前规则，使规则调整立即生效。
-		rule, err = s.resolveFeeRuleBySpotTx(tx, spotID)
-		if err != nil {
-			rErr = fmt.Errorf("无可用费用规则: %w", err)
-			return rErr
+		// 新记录优先使用入场时保存的完整快照；旧记录仍兼容 rule_id 与当前规则回退。
+		if snapshotS.Valid {
+			rule, _, err = decodeFeeRuleSnapshot(snapshotS.String)
+			if err != nil {
+				rErr = fmt.Errorf("读取入场费用快照: %w", err)
+				return rErr
+			}
+		}
+		if rule == nil && ruleID.Valid {
+			rule, err = s.getFeeRuleTx(tx, ruleID.Int64)
+			if err != nil {
+				rule = nil
+			}
+		}
+		if rule == nil {
+			rule, err = s.resolveFeeRuleBySpotTx(tx, spotID)
+			if err != nil {
+				rErr = fmt.Errorf("无可用费用规则: %w", err)
+				return rErr
+			}
 		}
 		bd = calc(checkIn, checkOut, rule)
 		fee = bd.TotalFee
