@@ -10,4 +10,6 @@ var (
 	ErrConflict = errors.New("数据冲突")
 	// ErrInvalidInput 表示输入数据不合法。
 	ErrInvalidInput = errors.New("输入不合法")
+	// ErrVehicleAlreadyParked 表示同一车辆仍有未结算记录。
+	ErrVehicleAlreadyParked = errors.New("车辆已有在场记录")
 )
