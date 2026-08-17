@@ -68,7 +68,7 @@ func (s *Store) CreateSpot(lotID int64, code string, status models.SpotStatus) (
 	res, err := s.db.Exec(`INSERT INTO parking_spots (lot_id, code, status, created_at) VALUES (?,?,?,?)`,
 		lotID, code, string(status), now())
 	if err != nil {
-		if strings.Contains(err.Error(), "UNIQUE") {
+		if isUniqueViolation(err) {
 			return 0, fmt.Errorf("%w: 该停车场下车位编号 %s 已存在", ErrConflict, code)
 		}
 		return 0, err
@@ -85,7 +85,7 @@ func (s *Store) UpdateSpot(id int64, code string, status models.SpotStatus) erro
 	res, err := s.db.Exec(`UPDATE parking_spots SET code=?, status=? WHERE id=?`,
 		code, string(status), id)
 	if err != nil {
-		if strings.Contains(err.Error(), "UNIQUE") {
+		if isUniqueViolation(err) {
 			return fmt.Errorf("%w: 该停车场下车位编号 %s 已存在", ErrConflict, code)
 		}
 		return err

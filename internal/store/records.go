@@ -105,6 +105,16 @@ func (s *Store) CheckIn(spotID, vehicleID int64) (int64, *models.FeeRule, error)
 		if err != nil {
 			return err
 		}
+		// 重复入场校验：同一车辆若仍有未结算（在场）记录，明确拒绝，不占新车位。
+		// 原订单出场结算后状态变为 completed，再次入场不受影响。
+		var existing int
+		if err := tx.QueryRow(`SELECT COUNT(*) FROM parking_records WHERE vehicle_id=? AND status='active'`, vehicleID).Scan(&existing); err != nil {
+			return err
+		}
+		if existing > 0 {
+			retErr = ErrVehicleAlreadyParked
+			return retErr
+		}
 		if status == string(models.SpotOccupied) {
 			retErr = errors.New("车位已被占用")
 			return retErr
@@ -125,6 +135,11 @@ func (s *Store) CheckIn(spotID, vehicleID int64) (int64, *models.FeeRule, error)
 			VALUES (?,?,?,?,?,?)`,
 			spotID, vehicleID, rule.ID, nowT.Format(time.RFC3339), string(models.RecordActive), nowT.Format(time.RFC3339))
 		if err != nil {
+			// 并发兜底：唯一索引 uq_records_active_vehicle 触发，归类为重复入场。
+			if isUniqueViolation(err) {
+				retErr = ErrVehicleAlreadyParked
+				return retErr
+			}
 			return err
 		}
 		recID, err = res.LastInsertId()
