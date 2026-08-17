@@ -143,22 +143,23 @@ func (s *Store) CheckIn(spotID, vehicleID int64) (int64, *models.FeeRule, error)
 }
 
 // CheckOut 车辆出场：在同一事务中计算费用、更新记录与车位状态。
+//
 //	checkOut 若为零值则取当前时间。
 //	返回计算出的费用与计费明细。
 func (s *Store) CheckOut(recordID int64, checkOut time.Time, calc FeeCalculator) (float64, *models.FeeBreakdown, error) {
 	var (
-		fee   float64
-		bd    *models.FeeBreakdown
-		rErr  error
+		fee  float64
+		bd   *models.FeeBreakdown
+		rErr error
 	)
 	err := s.inTx(func(tx *sql.Tx) error {
 		var (
-			ruleID    sql.NullInt64
-			checkInS  string
-			outS      sql.NullString
-			status    string
-			spotID    int64
-			rule      *models.FeeRule
+			ruleID   sql.NullInt64
+			checkInS string
+			outS     sql.NullString
+			status   string
+			spotID   int64
+			rule     *models.FeeRule
 		)
 		err := tx.QueryRow(`SELECT rule_id, check_in_time, check_out_time, status, spot_id
 			FROM parking_records WHERE id=?`, recordID).
@@ -203,7 +204,7 @@ func (s *Store) CheckOut(recordID int64, checkOut time.Time, calc FeeCalculator)
 		if err != nil {
 			return err
 		}
-		return setSpotStatus(tx, spotID, models.SpotAvailable)
+		return releaseSpotAfterCheckout(tx, spotID)
 	})
 	if err != nil && !errors.Is(err, rErr) {
 		return 0, nil, err

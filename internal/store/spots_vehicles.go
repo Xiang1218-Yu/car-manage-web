@@ -120,6 +120,15 @@ func setSpotStatus(tx *sql.Tx, id int64, status models.SpotStatus) error {
 	return err
 }
 
+// releaseSpotAfterCheckout 释放已结算车位，但不覆盖巡检期间设置的维护状态。
+func releaseSpotAfterCheckout(tx *sql.Tx, id int64) error {
+	_, err := tx.Exec(`UPDATE parking_spots
+		SET status=?
+		WHERE id=? AND status<>?`,
+		string(models.SpotAvailable), id, string(models.SpotMaintenance))
+	return err
+}
+
 func validStatus(s models.SpotStatus) bool {
 	switch s {
 	case models.SpotAvailable, models.SpotOccupied, models.SpotMaintenance:
