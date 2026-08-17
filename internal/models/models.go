@@ -23,11 +23,11 @@ const (
 
 // ParkingSpot 车位
 type ParkingSpot struct {
-	ID        int64     `json:"id"`
-	LotID     int64     `json:"lot_id"`
-	Code      string    `json:"code"`
+	ID        int64      `json:"id"`
+	LotID     int64      `json:"lot_id"`
+	Code      string     `json:"code"`
 	Status    SpotStatus `json:"status"`
-	CreatedAt Time      `json:"created_at"`
+	CreatedAt Time       `json:"created_at"`
 }
 
 // Vehicle 车辆
@@ -50,7 +50,7 @@ type Vehicle struct {
 //  4. 每日费用不超过 DailyCap（0 表示不封顶），跨日分别累计
 type FeeRule struct {
 	ID                int64   `json:"id"`
-	LotID             *int64  `json:"lot_id"`              // nil 表示全局规则
+	LotID             *int64  `json:"lot_id"` // nil 表示全局规则
 	Name              string  `json:"name"`
 	FreeMinutes       int     `json:"free_minutes"`
 	FirstBlockMinutes int     `json:"first_block_minutes"`
@@ -83,23 +83,32 @@ type ParkingRecord struct {
 	CreatedAt    Time         `json:"created_at"`
 }
 
+// ActiveParking 描述车辆当前尚未结算的停车位置，供重复入场提示使用。
+type ActiveParking struct {
+	RecordID    int64  `json:"record_id"`
+	SpotID      int64  `json:"spot_id"`
+	SpotCode    string `json:"spot_code"`
+	LotName     string `json:"lot_name"`
+	CheckInTime Time   `json:"check_in_time"`
+}
+
 // --- 用于 HTTP 层的关联视图结构 ---
 
 // SpotDetail 带停车场与当前在场车辆信息的车位视图
 type SpotDetail struct {
 	ParkingSpot
-	LotName        string  `json:"lot_name"`
-	CurrentPlate   string  `json:"current_plate"`   // 当前占用该车位的车辆牌号（若有）
-	CurrentRecordID int64 `json:"current_record_id"` // 当前在场记录 ID（若有）
+	LotName         string `json:"lot_name"`
+	CurrentPlate    string `json:"current_plate"`     // 当前占用该车位的车辆牌号（若有）
+	CurrentRecordID int64  `json:"current_record_id"` // 当前在场记录 ID（若有）
 }
 
 // RecordDetail 带关联信息的停车记录视图
 type RecordDetail struct {
 	ParkingRecord
-	SpotCode  string `json:"spot_code"`
-	LotName   string `json:"lot_name"`
-	Plate     string `json:"plate"`
-	RuleName  string `json:"rule_name"`
+	SpotCode string `json:"spot_code"`
+	LotName  string `json:"lot_name"`
+	Plate    string `json:"plate"`
+	RuleName string `json:"rule_name"`
 }
 
 // FeeBreakdown 费用计算明细，用于在前端展示计算过程
@@ -111,5 +120,5 @@ type FeeBreakdown struct {
 	ExtraUnits      int     `json:"extra_units"`
 	ExtraBlockFee   float64 `json:"extra_block_fee"`
 	TotalFee        float64 `json:"total_fee"`
-	DailyCapApplied  bool    `json:"daily_cap_applied"`
+	DailyCapApplied bool    `json:"daily_cap_applied"`
 }

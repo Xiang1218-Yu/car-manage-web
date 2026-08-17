@@ -1,11 +1,13 @@
 package server
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
 
 	"carmanageweb/internal/models"
+	"carmanageweb/internal/store"
 )
 
 // --- 费用规则 ---
@@ -103,6 +105,11 @@ func (s *Server) handleCheckIn(w http.ResponseWriter, r *http.Request) {
 		ref := r.FormValue("from")
 		if ref == "" {
 			ref = "/spots"
+		}
+		var activeErr *store.VehicleAlreadyParkedError
+		if errors.As(err, &activeErr) {
+			s.redirectWithFlash(w, r, ref, "入场失败: "+activeErr.Error())
+			return
 		}
 		s.redirectWithFlash(w, r, ref, "入场失败: "+err.Error())
 		return

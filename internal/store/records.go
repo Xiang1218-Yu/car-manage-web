@@ -113,6 +113,14 @@ func (s *Store) CheckIn(spotID, vehicleID int64) (int64, *models.FeeRule, error)
 			retErr = errors.New("车位维护中，不可停车")
 			return retErr
 		}
+		active, err := s.activeParkingForVehicleTx(tx, vehicleID)
+		if err != nil {
+			return err
+		}
+		if active != nil {
+			retErr = &VehicleAlreadyParkedError{Active: *active}
+			return retErr
+		}
 		// 解析生效费用规则
 		rule, err = s.resolveFeeRuleTx(tx, lotID)
 		if err != nil {
@@ -142,23 +150,50 @@ func (s *Store) CheckIn(spotID, vehicleID int64) (int64, *models.FeeRule, error)
 	return recID, rule, nil
 }
 
+// activeParkingForVehicleTx 返回车辆当前唯一的在场记录；无记录时返回 nil。
+func (s *Store) activeParkingForVehicleTx(tx *sql.Tx, vehicleID int64) (*models.ActiveParking, error) {
+	var active models.ActiveParking
+	var checkIn string
+	err := tx.QueryRow(`SELECT r.id, r.spot_id, s.code, COALESCE(l.name,''), r.check_in_time
+		FROM parking_records r
+		JOIN parking_spots s ON s.id=r.spot_id
+		LEFT JOIN parking_lots l ON l.id=s.lot_id
+		WHERE r.vehicle_id=? AND r.status=?
+		ORDER BY r.check_in_time ASC
+		LIMIT 1`, vehicleID, string(models.RecordActive)).
+		Scan(&active.RecordID, &active.SpotID, &active.SpotCode, &active.LotName, &checkIn)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	parsed, err := time.Parse(time.RFC3339, checkIn)
+	if err != nil {
+		return nil, fmt.Errorf("解析在场记录 %d 的入场时间: %w", active.RecordID, err)
+	}
+	active.CheckInTime = models.Time(parsed)
+	return &active, nil
+}
+
 // CheckOut 车辆出场：在同一事务中计算费用、更新记录与车位状态。
+//
 //	checkOut 若为零值则取当前时间。
 //	返回计算出的费用与计费明细。
 func (s *Store) CheckOut(recordID int64, checkOut time.Time, calc FeeCalculator) (float64, *models.FeeBreakdown, error) {
 	var (
-		fee   float64
-		bd    *models.FeeBreakdown
-		rErr  error
+		fee  float64
+		bd   *models.FeeBreakdown
+		rErr error
 	)
 	err := s.inTx(func(tx *sql.Tx) error {
 		var (
-			ruleID    sql.NullInt64
-			checkInS  string
-			outS      sql.NullString
-			status    string
-			spotID    int64
-			rule      *models.FeeRule
+			ruleID   sql.NullInt64
+			checkInS string
+			outS     sql.NullString
+			status   string
+			spotID   int64
+			rule     *models.FeeRule
 		)
 		err := tx.QueryRow(`SELECT rule_id, check_in_time, check_out_time, status, spot_id
 			FROM parking_records WHERE id=?`, recordID).

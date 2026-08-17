@@ -62,3 +62,8 @@ CREATE TABLE IF NOT EXISTS parking_records (
 
 CREATE INDEX IF NOT EXISTS idx_records_status ON parking_records(status);
 CREATE INDEX IF NOT EXISTS idx_records_spot   ON parking_records(spot_id);
+
+-- 同一车辆任意时刻只能保留一条在场记录，避免跨入口重复入场。
+CREATE UNIQUE INDEX IF NOT EXISTS idx_records_active_vehicle
+    ON parking_records(vehicle_id)
+    WHERE status = 'active';
